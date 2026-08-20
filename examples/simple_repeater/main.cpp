@@ -3,6 +3,10 @@
 
 #include "MyMesh.h"
 
+#ifdef GRUMPY_WEB_SETUP
+  #include <GrumpyWebSetup.h>
+#endif
+
 #ifdef DISPLAY_CLASS
   #include "UITask.h"
   static UITask ui_task(display);
@@ -91,12 +95,19 @@ void setup() {
 
   the_mesh.begin(fs);
 
+#ifdef GRUMPY_WEB_SETUP
+  grumpy_web_setup.begin(the_mesh, *fs);
+#endif
+
 #ifdef DISPLAY_CLASS
   ui_task.begin(the_mesh.getNodePrefs(), FIRMWARE_BUILD_DATE, FIRMWARE_VERSION);
 #endif
 
   // send out initial zero hop Advertisement to the mesh
 #if ENABLE_ADVERT_ON_BOOT == 1
+#ifdef GRUMPY_WEB_SETUP
+  if (!grumpy_web_setup.isActive())
+#endif
   the_mesh.sendSelfAdvertisement(16000, false);
 #endif
 
@@ -145,7 +156,12 @@ void loop() {
   }
 #endif
 
+#ifdef GRUMPY_WEB_SETUP
+  grumpy_web_setup.loop();
+  if (!grumpy_web_setup.isActive()) the_mesh.loop();
+#else
   the_mesh.loop();
+#endif
   sensors.loop();
 #ifdef DISPLAY_CLASS
   ui_task.loop();
