@@ -81,7 +81,7 @@ void GrumpyNodeBoard::enableRadio() {
 bool GrumpyNodeBoard::readFuelGaugeRegister(uint8_t register_address, uint16_t &value) {
   Wire.beginTransmission(kFuelGaugeAddress);
   Wire.write(register_address);
-  if (Wire.endTransmission() != 0) {
+  if (Wire.endTransmission(false) != 0) {
     return false;
   }
 
