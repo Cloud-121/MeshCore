@@ -1,0 +1,46 @@
+name: Grumpy PR Build Check
+
+# replaces upstream's pr-build-check.yml (disabled on this fork) so CI only builds the Grumpy Node board
+
+on:
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'variants/**'
+      - 'platformio.ini'
+      - '.github/workflows/grumpy-pr-build-check.yml'
+  push:
+    branches: [main, dev]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'variants/**'
+      - 'platformio.ini'
+      - '.github/workflows/grumpy-pr-build-check.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment:
+          - Grumpy_Node_repeater
+          - Grumpy_Node_repeater_web_setup
+          - Grumpy_Node_room_server
+          - Grumpy_Node_companion_radio_ble
+          - Grumpy_Node_companion_radio_usb
+          - Grumpy_Node_companion_radio_wifi
+          - Grumpy_Node_kiss_modem
+
+    steps:
+      - name: Clone Repo
+        uses: actions/checkout@v6
+
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-build-environment
+
+      - name: Build ${{ matrix.environment }}
+        run: pio run -e ${{ matrix.environment }}
