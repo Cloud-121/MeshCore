@@ -3,14 +3,9 @@ name: Grumpy PR Build Check
 # replaces upstream's pr-build-check.yml (disabled on this fork) so CI only builds the Grumpy Node board
 
 on:
+  workflow_dispatch:
   pull_request:
     branches: [main, dev]
-    paths:
-      - 'src/**'
-      - 'examples/**'
-      - 'variants/**'
-      - 'platformio.ini'
-      - '.github/workflows/grumpy-pr-build-check.yml'
   push:
     branches: [main, dev]
     paths:
