@@ -1,0 +1,95 @@
+name: Grumpy Upstream Release Sync
+
+# checks meshcore-dev/MeshCore for a new official release, and opens a PR to bring it into main.
+# merging that PR triggers grumpy-release.yml, which builds and publishes the Grumpy Node release.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * *'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  UPSTREAM_REPO: meshcore-dev/MeshCore
+
+jobs:
+  sync:
+    if: github.repository == 'Cloud-121/MeshCore'
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Clone Repo
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          # PAT is required to push branches that modify .github/workflows, and so the PR triggers CI
+          token: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Find Latest Upstream Release
+        id: upstream
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          # newest published, non-prerelease release (e.g: repeater-v1.18.0)
+          TAG=$(gh release list -R "$UPSTREAM_REPO" --exclude-drafts --exclude-pre-releases \
+            --json tagName,publishedAt --jq 'sort_by(.publishedAt) | last | .tagName')
+          if [ -z "$TAG" ]; then
+            echo "no upstream release found"
+            exit 1
+          fi
+
+          # a tag of "repeater-v1.2.3" should give a version of "v1.2.3"
+          VERSION="${TAG##*-}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "branch=upstream-sync/$VERSION" >> $GITHUB_OUTPUT
+          echo "Latest upstream release: $TAG ($VERSION)"
+
+      - name: Check If Already Synced
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          VERSION: ${{ steps.upstream.outputs.version }}
+          BRANCH: ${{ steps.upstream.outputs.branch }}
+        run: |
+          SKIP=false
+          if gh release view "grumpy-$VERSION" >/dev/null 2>&1; then
+            echo "release grumpy-$VERSION already exists"
+            SKIP=true
+          elif git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null; then
+            echo "branch $BRANCH already exists"
+            SKIP=true
+          fi
+          echo "skip=$SKIP" >> $GITHUB_OUTPUT
+
+      - name: Create Sync Branch And PR
+        if: steps.check.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          TAG: ${{ steps.upstream.outputs.tag }}
+          VERSION: ${{ steps.upstream.outputs.version }}
+          BRANCH: ${{ steps.upstream.outputs.branch }}
+        run: |
+          git fetch --no-tags "https://github.com/$UPSTREAM_REPO.git" "refs/tags/$TAG:refs/upstream-tags/$TAG"
+          git push origin "refs/upstream-tags/$TAG^{commit}:refs/heads/$BRANCH"
+
+          gh label create upstream-release --color 0E8A16 \
+            --description "Upstream MeshCore release sync" --force
+
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --label upstream-release \
+            --title "Upstream MeshCore $VERSION" \
+            --body "$(cat <<EOF
+          Brings the official MeshCore **$VERSION** release into main.
+
+          Upstream release: https://github.com/$UPSTREAM_REPO/releases/tag/$TAG
+
+          Resolve any conflicts with the Grumpy Node changes, test on hardware, then merge.
+          **Merging this PR automatically builds and publishes release \`grumpy-$VERSION\`.**
+          EOF
+          )"
